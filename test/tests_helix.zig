@@ -281,3 +281,152 @@ test "surround_add nudges other cursors by the inserted brackets only" {
     try std.testing.expectEqual(4, enclosed.begin.col);
     try std.testing.expectEqual(9, enclosed.end.col);
 }
+
+test "helix h and l do not wrap lines" {
+    const now = std.Io.Clock.real.now(std.testing.io);
+    const buffer = try Buffer.create(a, now);
+    defer buffer.deinit();
+    buffer.update(try buffer.load_from_string("ab\ncd\n", &eol_mode, &sanitized), now);
+    const root = buffer.root;
+
+    var cursor: Cursor = .{ .row = 1, .col = 0 };
+    try helix.test_internal.move_cursor_char_left_helix(root, &cursor, metrics());
+    try std.testing.expectEqual(1, cursor.row);
+    try std.testing.expectEqual(0, cursor.col);
+
+    cursor = .{ .row = 0, .col = 1 };
+    try helix.test_internal.move_cursor_char_right_helix(root, &cursor, metrics());
+    try std.testing.expectEqual(0, cursor.row);
+    try std.testing.expectEqual(2, cursor.col);
+    // l may rest on the line ending but does not move to the next line
+    try helix.test_internal.move_cursor_char_right_helix(root, &cursor, metrics());
+    try std.testing.expectEqual(0, cursor.row);
+    try std.testing.expectEqual(2, cursor.col);
+
+    try helix.test_internal.move_cursor_char_left_helix(root, &cursor, metrics());
+    try std.testing.expectEqual(0, cursor.row);
+    try std.testing.expectEqual(1, cursor.col);
+}
+
+test "helix gl goes to last character of line" {
+    const now = std.Io.Clock.real.now(std.testing.io);
+    const buffer = try Buffer.create(a, now);
+    defer buffer.deinit();
+    buffer.update(try buffer.load_from_string("hello\n\nx\n", &eol_mode, &sanitized), now);
+    const root = buffer.root;
+
+    var cursor: Cursor = .{ .row = 0, .col = 1 };
+    try helix.test_internal.move_cursor_line_end_helix(root, &cursor, metrics());
+    try std.testing.expectEqual(0, cursor.row);
+    try std.testing.expectEqual(4, cursor.col);
+
+    cursor = .{ .row = 1, .col = 0 };
+    try helix.test_internal.move_cursor_line_end_helix(root, &cursor, metrics());
+    try std.testing.expectEqual(1, cursor.row);
+    try std.testing.expectEqual(0, cursor.col);
+}
+
+test "helix last line ignores trailing newline" {
+    const now = std.Io.Clock.real.now(std.testing.io);
+    const buffer = try Buffer.create(a, now);
+    defer buffer.deinit();
+    buffer.update(try buffer.load_from_string("one\ntwo\nthree\n", &eol_mode, &sanitized), now);
+    try std.testing.expectEqual(2, helix.test_internal.last_line_helix(buffer.root, metrics()));
+
+    const buffer2 = try Buffer.create(a, now);
+    defer buffer2.deinit();
+    buffer2.update(try buffer2.load_from_string("one\ntwo", &eol_mode, &sanitized), now);
+    try std.testing.expectEqual(1, helix.test_internal.last_line_helix(buffer2.root, metrics()));
+}
+
+test "helix extend selection keeps the anchor character" {
+    const now = std.Io.Clock.real.now(std.testing.io);
+    const buffer = try Buffer.create(a, now);
+    defer buffer.deinit();
+    buffer.update(try buffer.load_from_string("one\ntwo\nthree\n", &eol_mode, &sanitized), now);
+    const root = buffer.root;
+
+    // forward selection of "w" (row 1, col 1) extended down to row 2 col 0
+    var sel: Buffer.Selection = .{ .begin = .{ .row = 1, .col = 1 }, .end = .{ .row = 1, .col = 2 } };
+    helix.test_internal.extend_selection_to(root, &sel, .{ .row = 2, .col = 0 }, metrics());
+    try std.testing.expectEqual(Cursor{ .row = 1, .col = 1 }, Cursor{ .row = sel.begin.row, .col = sel.begin.col });
+    try std.testing.expectEqual(Cursor{ .row = 2, .col = 1 }, Cursor{ .row = sel.end.row, .col = sel.end.col });
+
+    // now extend up to the file start: selection flips but still includes "w"
+    helix.test_internal.extend_selection_to(root, &sel, .{ .row = 0, .col = 0 }, metrics());
+    try std.testing.expect(sel.is_reversed());
+    try std.testing.expectEqual(Cursor{ .row = 1, .col = 2 }, Cursor{ .row = sel.begin.row, .col = sel.begin.col });
+    try std.testing.expectEqual(Cursor{ .row = 0, .col = 0 }, Cursor{ .row = sel.end.row, .col = sel.end.col });
+
+    // and back down again: forward selection anchored at "w"
+    helix.test_internal.extend_selection_to(root, &sel, .{ .row = 1, .col = 2 }, metrics());
+    try std.testing.expect(!sel.is_reversed());
+    try std.testing.expectEqual(Cursor{ .row = 1, .col = 1 }, Cursor{ .row = sel.begin.row, .col = sel.begin.col });
+    try std.testing.expectEqual(Cursor{ .row = 1, .col = 3 }, Cursor{ .row = sel.end.row, .col = sel.end.col });
+}
+
+test "helix extend and shrink to line bounds" {
+    const now = std.Io.Clock.real.now(std.testing.io);
+    const buffer = try Buffer.create(a, now);
+    defer buffer.deinit();
+    buffer.update(try buffer.load_from_string("one\ntwo\nthree\n", &eol_mode, &sanitized), now);
+    const root = buffer.root;
+
+    var sel: Buffer.Selection = .{ .begin = .{ .row = 0, .col = 1 }, .end = .{ .row = 1, .col = 2 } };
+    helix.test_internal.extend_selection_to_line_bounds(root, &sel, metrics());
+    try std.testing.expectEqual(Cursor{ .row = 0, .col = 0 }, Cursor{ .row = sel.begin.row, .col = sel.begin.col });
+    try std.testing.expectEqual(Cursor{ .row = 2, .col = 0 }, Cursor{ .row = sel.end.row, .col = sel.end.col });
+
+    // already line-wise: unchanged
+    helix.test_internal.extend_selection_to_line_bounds(root, &sel, metrics());
+    try std.testing.expectEqual(Cursor{ .row = 0, .col = 0 }, Cursor{ .row = sel.begin.row, .col = sel.begin.col });
+    try std.testing.expectEqual(Cursor{ .row = 2, .col = 0 }, Cursor{ .row = sel.end.row, .col = sel.end.col });
+
+    // reversed selection stays reversed
+    sel = .{ .begin = .{ .row = 1, .col = 2 }, .end = .{ .row = 0, .col = 1 } };
+    helix.test_internal.extend_selection_to_line_bounds(root, &sel, metrics());
+    try std.testing.expect(sel.is_reversed());
+    try std.testing.expectEqual(Cursor{ .row = 2, .col = 0 }, Cursor{ .row = sel.begin.row, .col = sel.begin.col });
+    try std.testing.expectEqual(Cursor{ .row = 0, .col = 0 }, Cursor{ .row = sel.end.row, .col = sel.end.col });
+
+    // shrink: partial first and last lines are dropped
+    sel = .{ .begin = .{ .row = 0, .col = 1 }, .end = .{ .row = 2, .col = 3 } };
+    try std.testing.expect(helix.test_internal.shrink_selection_to_line_bounds(&sel));
+    try std.testing.expectEqual(Cursor{ .row = 1, .col = 0 }, Cursor{ .row = sel.begin.row, .col = sel.begin.col });
+    try std.testing.expectEqual(Cursor{ .row = 2, .col = 0 }, Cursor{ .row = sel.end.row, .col = sel.end.col });
+
+    // single line selections are left alone
+    sel = .{ .begin = .{ .row = 0, .col = 1 }, .end = .{ .row = 0, .col = 3 } };
+    try std.testing.expect(!helix.test_internal.shrink_selection_to_line_bounds(&sel));
+    try std.testing.expectEqual(1, sel.begin.col);
+}
+
+test "helix f t F T skip the character under the head" {
+    const now = std.Io.Clock.real.now(std.testing.io);
+    const buffer = try Buffer.create(a, now);
+    defer buffer.deinit();
+    buffer.update(try buffer.load_from_string("abaab\nxa\n", &eol_mode, &sanitized), now);
+    const root = buffer.root;
+    const find = helix.test_internal.find_char_target_helix;
+
+    // f a on an 'a' goes to the next 'a'
+    var c = try find(root, .{ .row = 0, .col = 0 }, .to_right, fmt_command(.{"a"}), metrics());
+    try std.testing.expectEqual(Cursor{ .row = 0, .col = 2, .target = 2 }, c);
+
+    // t a stops before the next 'a', skipping an adjacent one
+    c = try find(root, .{ .row = 0, .col = 1 }, .till_right, fmt_command(.{"a"}), metrics());
+    try std.testing.expectEqual(Cursor{ .row = 0, .col = 2, .target = 2 }, c);
+    c = try find(root, c, .till_right, fmt_command(.{"a"}), metrics());
+    try std.testing.expectEqual(Cursor{ .row = 1, .col = 0, .target = 0 }, c);
+
+    // F a goes backwards, across lines
+    c = try find(root, .{ .row = 1, .col = 1 }, .to_left, fmt_command(.{"a"}), metrics());
+    try std.testing.expectEqual(Cursor{ .row = 0, .col = 3, .target = 3 }, c);
+
+    // T a stops after the previous 'a', skipping an adjacent one
+    c = try find(root, .{ .row = 0, .col = 4 }, .till_left, fmt_command(.{"a"}), metrics());
+    try std.testing.expectEqual(Cursor{ .row = 0, .col = 3, .target = 3 }, c);
+
+    // not found
+    try std.testing.expectError(error.Stop, find(root, .{ .row = 0, .col = 0 }, .to_right, fmt_command(.{"z"}), metrics()));
+}

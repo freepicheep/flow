@@ -37,14 +37,15 @@
             ["ctrl+w o", "close_other_splits"],
 
             ["alt+.", "repeat_last_motion"],
-            ["alt+d", "delete_backward"],
-            ["alt+c", "change_backward_helix"],
+            ["alt+d", "delete_selection_noyank"],
+            ["alt+c", ["delete_selection_noyank"], ["enter_mode", "insert"]],
 
             ["alt+s", "split_selection_on_newline"],
             ["alt+-", "merge_selections"],
             ["alt+_", "merge_consecutive_selections"],
 
-            ["alt+;", "flip_selections"],
+            ["alt+;", "selections_reverse"],
+            ["alt+:", "ensure_selections_forward"],
             ["alt+o", "expand_selection"],
             ["alt+up", "expand_selection"],
             ["alt+i", "shrink_selection"],
@@ -106,7 +107,7 @@
             [">", "indent"],
             ["<", "unindent"],
 
-            ["J", "join_selections"],
+            ["J", "join_next_line"],
 
             [":", "open_command_palette"],
 
@@ -121,23 +122,27 @@
             ["!", "shell_insert_output"],
             ["$", "shell_keep_pipe"],
 
-            ["h", "move_left"],
-            ["j", "move_down"],
-            ["k", "move_up"],
-            ["l", "move_right"],
+            ["h", "move_char_left"],
+            ["j", "move_line_down"],
+            ["k", "move_line_up"],
+            ["l", "move_char_right"],
+            ["left", "move_char_left"],
+            ["down", "move_line_down"],
+            ["up", "move_line_up"],
+            ["right", "move_char_right"],
 
             ["home", "move_begin"],
-            ["end", "move_end"],
+            ["end", "goto_line_end"],
 
             ["v", "enter_mode", "select"],
 
-            ["G", "goto_line"],
-            ["g g", "goto_line_vim"],
-            ["g e", "move_buffer_end"],
+            ["G", "goto_line_helix"],
+            ["g g", "goto_file_start"],
+            ["g e", "goto_last_line"],
             ["g f", "goto_file"],
             ["g h", "move_begin"],
-            ["g l", "move_end"],
-            ["g s", "smart_move_begin"],
+            ["g l", "goto_line_end"],
+            ["g s", "goto_first_nonwhitespace"],
             ["g d", "goto_definition"],
             ["g y", "goto_type_definition"],
             ["g r", "references"],
@@ -147,9 +152,9 @@
             ["g b", "goto_window_bottom"],
             ["g a", "open_previous_file"],
             ["g m", "open_most_recent_file"],
-            ["g n", "goto_next_buffer"],
-            ["g p", "goto_previous_buffer"],
-            ["g k", "goto_previous_buffer"],
+            ["g n", "next_tab"],
+            ["g p", "previous_tab"],
+            ["g k", "previous_tab"],
             ["g .", "goto_last_modification"],
             ["g w", "goto_word"],
             ["g D", "goto_declaration"],
@@ -182,7 +187,7 @@
             ["[ a", "goto_prev_parameter"],
             ["[ c", "goto_prev_comment"],
             ["[ e", "goto_prev_entry"],
-            ["[ p", "goto_prev_paragraph"],
+            ["[ p", "move_par_begin"],
             ["[ space", "add_newline_above"],
 
             ["] D", "goto_last_diag"],
@@ -195,7 +200,7 @@
             ["] a", "goto_next_parameter"],
             ["] c", "goto_next_comment"],
             ["] e", "goto_next_entry"],
-            ["] p", "goto_next_paragraph"],
+            ["] p", "move_par_end"],
             ["] space", "add_newline_below"],
 
             ["/", "find"],
@@ -210,7 +215,7 @@
             ["q", "record_macro"],
             ["Q", "replay_macro"],
 
-            ["=", "format_selections"],
+            ["=", "format"],
 
             [",", "keep_primary_selection"],
 
@@ -298,18 +303,19 @@
 
             ["ctrl+^", "open_previous_file"],
 
-            ["alt+.", "repeat_last_motion"],
+            ["alt+.", "repeat_last_motion", "extend"],
 
             ["alt+`", "switch_to_uppercase"],
 
-            ["alt+d", "delete_backward"],
-            ["alt+c", ["enter_mode", "insert"], ["delete_backward"]],
+            ["alt+d", ["delete_selection_noyank"], ["enter_mode", "normal"]],
+            ["alt+c", ["delete_selection_noyank"], ["enter_mode", "insert"]],
 
             ["alt+s", "split_selection_on_newline"],
             ["alt+-", "merge_selections"],
             ["alt+_", "merge_consecutive_selections"],
 
-            ["alt+;", "flip_selections"],
+            ["alt+;", "selections_reverse"],
+            ["alt+:", "ensure_selections_forward"],
             ["alt+o", "expand_selection"],
             ["alt+i", "shrink_selection"],
             ["alt+p", "select_prev_sibling"],
@@ -358,7 +364,7 @@
             ["t", "move_to_char", "extend_till_char_right_helix"],
             ["f", "move_to_char", "extend_to_char_right_helix"],
 
-            ["G", "select_to_line"],
+            ["G", "extend_to_line_helix"],
 
             ["I", ["enter_mode", "insert"], ["smart_move_begin"]],
             ["A", ["enter_mode", "insert"], ["move_end"]],
@@ -371,7 +377,7 @@
 
             ["?", "rfind"],
 
-            ["N", "extend_search_next"],
+            ["N", "add_prev_match_helix"],
             ["*", "search_selection"],
 
             ["r", "replace"],
@@ -382,7 +388,7 @@
             [">", "indent"],
             ["<", "unindent"],
 
-            ["J", "join_selections"],
+            ["J", "join_next_line"],
 
             [":", "open_command_palette"],
 
@@ -398,12 +404,12 @@
             ["$", "shell_keep_pipe"],
 
             ["h", "select_left_helix"],
-            ["j", "select_down"],
-            ["k", "select_up"],
+            ["j", "extend_line_down"],
+            ["k", "extend_line_up"],
             ["l", "select_right_helix"],
             ["left", "select_left_helix"],
-            ["down", "select_down"],
-            ["up", "select_up"],
+            ["down", "extend_line_down"],
+            ["up", "extend_line_up"],
             ["right", "select_right_helix"],
             ["%", "select_all"],
 
@@ -413,24 +419,24 @@
             ["end", "extend_to_line_end"],
             ["v", "enter_mode", "normal"],
 
-            ["g g", "select_to_line_vim"],
-            ["g e", "select_buffer_end"],
+            ["g g", "extend_to_file_start"],
+            ["g e", "extend_to_last_line"],
             ["g f", "goto_file"],
-            ["g h", "move_begin"],
-            ["g l", "select_end"],
-            ["g s", "smart_move_begin"],
+            ["g h", "extend_to_line_start"],
+            ["g l", "extend_to_line_end"],
+            ["g s", "extend_to_first_nonwhitespace"],
             ["g d", "goto_definition"],
             ["g y", "goto_type_definition"],
             ["g r", "references"],
             ["g i", "goto_implementation"],
-            ["g t", "goto_window_top"],
-            ["g c", "goto_window_center"],
-            ["g b", "goto_window_bottom"],
+            ["g t", "extend_to_window_top"],
+            ["g c", "extend_to_window_center"],
+            ["g b", "extend_to_window_bottom"],
             ["g a", "open_previous_file"],
             ["g m", "open_most_recent_file"],
-            ["g n", "goto_next_buffer"],
-            ["g p", "goto_previous_buffer"],
-            ["g k", "goto_previous_buffer"],
+            ["g n", "next_tab"],
+            ["g p", "previous_tab"],
+            ["g k", "previous_tab"],
             ["g .", "goto_last_modification"],
             ["g w", "goto_word"],
             ["g D", "goto_declaration"],
@@ -465,12 +471,12 @@
             ["[ a", "goto_prev_parameter"],
             ["[ c", "goto_prev_comment"],
             ["[ e", "goto_prev_entry"],
-            ["[ p", "goto_prev_paragraph"],
+            ["[ p", "select_par_begin"],
             ["[ space", "add_newline_above"],
 
-            ["] d", "goto_last_diag"],
-            ["] g", "goto_last_change"],
-            ["] t", "goto_next_test"],
+            ["] D", "goto_last_diag"],
+            ["] G", "goto_last_change"],
+            ["] T", "goto_next_test"],
             ["] d", "goto_next_diagnostic"],
             ["] g", "goto_next_change"],
             ["] f", "goto_next_function"],
@@ -478,7 +484,7 @@
             ["] a", "goto_next_parameter"],
             ["] c", "goto_next_comment"],
             ["] e", "goto_next_entry"],
-            ["] p", "goto_next_paragraph"],
+            ["] p", "select_par_end"],
             ["] space", "add_newline_below"],
 
             ["/", "find"],
@@ -492,13 +498,16 @@
             ["q", "record_macro"],
             ["Q", "replay_macro"],
 
-            ["=", "format_selections"],
+            ["=", "format"],
 
             [",", "keep_primary_selection"],
 
             ["escape", "enter_mode", "normal"],
 
-            ["space F", "file_picker_in_current_directory"],
+            ["page_up", "select_page_up"],
+            ["page_down", "select_page_down"],
+
+            ["space F", "find_file"],
             ["space S", "workspace_symbol_picker"],
             ["space D", "workspace_diagnostics_picker"],
             ["space P", "system_paste"],
